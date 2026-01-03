@@ -16,7 +16,7 @@ add_dependencies(tinycq yaml)
 
 # target_link_libraries(mymodel yaml ws2_32)
 target_link_libraries(mymodel yaml)
-
+set(mimalloc_DIR "D:/vcpkg/installed/x64-windows-static/share/mimalloc")
 find_package(mimalloc CONFIG REQUIRED)
 if(TARGET mimalloc-static)
 message("use static mimalloc")
