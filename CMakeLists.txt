@@ -3,6 +3,7 @@ set(PROJ_NAME SIMPLE_CQ)
 project(${PROJ_NAME})
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_TOOLCHAIN_FILE "D:/vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain file")
 
 include_directories(AFTER ${PROJECT_SOURCE_DIR}/src)
 include_directories(AFTER ${PROJECT_SOURCE_DIR}/3rd-party)
