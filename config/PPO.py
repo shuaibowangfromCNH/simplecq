@@ -1,11 +1,19 @@
 import os
 os.environ['TORCHDYNAMO_DISABLE'] = '1'
 os.environ['PYTORCH_JIT'] = '0'
+import numpy as np
 import torch
+import wandb
 import torch.nn as nn
 from torch.distributions import MultivariateNormal
 from torch.distributions import Categorical
-import gym
+# import gym
+try:
+    import gymnasium as gym
+    print("✓ 使用 Gymnasium")
+except ImportError:
+    import gym
+    print("⚠️ 使用旧版 Gym")
 
 ################################## 设备设定 ##################################
 print("============================================================================================")
@@ -141,7 +149,6 @@ class ActorCritic(nn.Module):
 class PPO:
     def __init__(self, state_dim, action_dim, lr_actor, lr_critic, gamma, K_epochs, eps_clipping, is_continuous_action_space, action_std_init=0.6):
         self.is_continuous_action_space = is_continuous_action_space
-
         if is_continuous_action_space:
             self.action_std = action_std_init
 
@@ -222,15 +229,53 @@ class PPO:
             discounted_reward = reward + (self.gamma * discounted_reward)
             rewards.insert(0, discounted_reward)
 
+        # 1. 处理states
+        processed_states = []
+        for state in self.buffer.states:
+            if isinstance(state, np.ndarray):
+                processed_states.append(torch.FloatTensor(state).to(device))
+            elif isinstance(state, torch.Tensor):
+                processed_states.append(state.to(device))
+            else:
+                # 如果既不是numpy也不是tensor，尝试转换
+                processed_states.append(torch.FloatTensor([state]).to(device))
+        
+        # 2. 处理其他buffer数据
+        processed_actions = []
+        for action in self.buffer.actions:
+            if not isinstance(action, torch.Tensor):
+                processed_actions.append(torch.tensor([action], dtype=torch.float32).to(device))
+            else:
+                processed_actions.append(action.to(device))
+        
+        processed_logprobs = []
+        for logprob in self.buffer.logprobs:
+            if not isinstance(logprob, torch.Tensor):
+                processed_logprobs.append(torch.tensor([logprob], dtype=torch.float32).to(device))
+            else:
+                processed_logprobs.append(logprob.to(device))
+        
+        processed_state_values = []
+        for value in self.buffer.state_values:
+            if not isinstance(value, torch.Tensor):
+                processed_state_values.append(torch.tensor([value], dtype=torch.float32).to(device))
+            else:
+                processed_state_values.append(value.to(device))
+
         rewards = torch.tensor(rewards, dtype=torch.float32).to(device)
-        old_states = torch.squeeze(torch.stack(self.buffer.states, dim=0)).detach().to(device)
-        old_actions = torch.squeeze(torch.stack(self.buffer.actions, dim=0)).detach().to(device)
-        old_logprobs = torch.squeeze(torch.stack(self.buffer.logprobs, dim=0)).detach().to(device)
-        old_state_values = torch.squeeze(torch.stack(self.buffer.state_values, dim=0)).detach().to(device)
+        old_states = torch.squeeze(torch.stack(processed_states, dim=0)).detach()
+        old_actions = torch.squeeze(torch.stack(processed_actions, dim=0)).detach()
+        old_logprobs = torch.squeeze(torch.stack(processed_logprobs, dim=0)).detach()
+        old_state_values = torch.squeeze(torch.stack(processed_state_values, dim=0)).detach()
 
         # 计算优势（修复归一化问题）
         advantages = rewards.detach() - old_state_values.detach()
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-7)
+        #打印loss
+        policy_loss_epoch = 0.0
+        value_loss_epoch = 0.0
+        entropy_epoch = 0.0
+        total_loss_epoch = 0.0
 
         for _ in range(self.K_epochs):
             logprobs, state_values, dist_entropy = self.policy.evaluate(old_states, old_actions)
@@ -246,10 +291,26 @@ class PPO:
             entropy_loss = -0.01 * dist_entropy.mean()
             loss = surrogate_loss + critic_loss + entropy_loss
 
+            # policy_loss_epoch += surrogate_loss.item()
+            # value_loss_epoch += critic_loss.item()
+            # entropy_epoch += dist_entropy.mean().item()   # 注意：log 原始 entropy
+            # total_loss_epoch += loss.item()
+
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
+
+        # policy_loss_epoch /= self.K_epochs
+        # value_loss_epoch /= self.K_epochs
+        # entropy_epoch /= self.K_epochs
+        # total_loss_epoch /= self.K_epochs
+        # wandb.log({
+        #     "loss/total": total_loss_epoch,
+        #     "loss/policy": policy_loss_epoch,
+        #     "loss/value": value_loss_epoch,
+        #     "policy/entropy": entropy_epoch,
+        # })
         self.policy_old.load_state_dict(self.policy.state_dict())
         self.buffer.clear()
 
@@ -260,6 +321,13 @@ class PPO:
     def load(self, checkpoint_path):
         self.policy_old.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
         self.policy.load_state_dict(torch.load(checkpoint_path, map_location=lambda storage, loc: storage))
+
+    # 用于测试,纯推理
+    def act(self, state, deterministic=True):
+        with torch.no_grad():
+            state_t = torch.FloatTensor(state).to(device)
+            action, _, _ = self.policy_old.take_action(state_t, deterministic=deterministic)
+        return action.detach().cpu().numpy().flatten()
 
 
 

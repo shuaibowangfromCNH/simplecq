@@ -1,0 +1,99 @@
+config:
+    profile: "D:/codeproject/simplecq/config/profile.txt"
+    restart_key: restart
+    side_filter: side
+    log_level: 1
+
+models:
+    - 
+        dll_name: "D:/codeproject/CarPhyModel/bin/CarPhyModel.dll"
+        model_name: phy
+        output_movable: false
+    - 
+        dll_name: "D:/cqmodel/rule_framework/rulesingle/rulesingle.dll"
+        model_name: beh
+        output_movable: false
+
+init_convert:
+    - 
+        to: phy
+        values: 
+            - {name: phyfilePath}
+            - {name: longitude}
+            - {name: latitude}
+            - {name: altitude}
+            - {name: platoonid}
+            - {name: demFilePath}
+    - 
+        to: beh
+        values:
+            - {name: filePath}
+            - {name: enableLog}
+            - {name: ForceSideID} 
+
+input_convert: #作为组合模型整体输入时的参数输入(不包含内部之间的输入输出)
+    - 
+        to: phy
+        values:
+            - {name: FireID}
+            - {name: FireData}
+            - {name: EntityInfo}
+            - {name: scannedInfo} #其他实体扫描到的信息列表
+            - {name: scannedInfosize} # 其他实体扫描到的信息列表大小
+    - 
+        to: beh
+        values:
+            # - {name: targetDir}
+            # - {name: targetVel}
+            # - {name: enableFire}
+            # - {name: formationID}
+            # - {name: fireTarget}
+            - {name: TacticID}
+            - {name: Argument1}
+            - {name: Argument2}
+            - {name: Argument3}
+            - {name: Argument4}
+            - {name: pythonParam1}
+            - {name: pythonParam2}
+
+output_convert:
+    - 
+        from: phy # 作为组合模型整体输出时的参数输出(不包含内部之间的输入输出)
+        values:
+            - {name: State}
+            - {name: VID}
+            - {name: FireDataOut}
+            - {name: EntityInfoOut}
+            - {name: scannedInfoOut} #本车扫描到的所有信息
+            - {name: scannedInfosizeout} #本车扫描到的信息列表大小
+            - {name: roll}
+            - {name: yaw}
+            - {name: pitch}
+            - {name: longitude}
+            - {name: latitude}
+            - {name: altitude}
+    - 
+        from: beh # 作为组合模型整体输出时的参数输出(不包含内部之间的输入输出)
+        values:
+            - {name: distance_out}
+    - 
+        from: phy # 内部之间的输入输出
+        to: beh
+        values:
+            # - {name: roll}
+            # - {name: pitch}
+            - {name: yaw}
+            - {src_name: EntityInfoOut, dst_name: selfInfo}
+            #- {src_name: scannedInfoOut, dst_name: scannedInfo}
+            - {src_name: weaponInfoOut, dst_name: weaponInfo}
+            - {src_name: systemscannedInfoOut, dst_name: scannedInfo}
+            - {src_name: targetInfoOut, dst_name: targetInfo}
+            - {src_name: random, dst_name: RANDOM}
+            - {src_name: relativeangle, dst_name: RP}
+    - 
+        from: beh # 内部之间的输入输出
+        to: phy
+        values:
+            - {name: Param1}
+            - {name: Param2}
+            - {src_name: ActionId, dst_name: Command}

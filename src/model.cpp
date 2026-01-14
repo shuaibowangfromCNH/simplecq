@@ -42,7 +42,7 @@ class MyAssembledModel : public CSModelObject {
         }
 
         auto location = getLibDir();
-        auto configFile = location + "assemble.yml";
+        auto configFile = location + "assemble_wsfmodel.yml";
         auto config = YAML::LoadFile(configFile);
         for (auto &&model : config["models"]) {
             auto name = model["model_name"].as<std::string>();

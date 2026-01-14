@@ -1,5 +1,6 @@
 import socket
 from enum import Enum
+import numpy as np
 
 def make_xml_data(data, type_def):
     if isinstance(type_def, str):
@@ -54,6 +55,8 @@ class Agent:
         self.init_val = None
 
     def reset(self):
+        global prev_distance
+        prev_distance = None
         if self.state == State.FIRST_INIT:
             self.state = State.RUNNING
             self.init_val = self._recv()
@@ -70,8 +73,13 @@ class Agent:
                 即: 当前帧的action并不会影响step返回的state, 而只能对下一帧的step返回值产生影响
         '''
         assert self.state == State.RUNNING
-        self._send(self.process_input(action))
-        s = self.process_output(self._recv())
+        # self._send(self.process_input(action))
+        self.link.send(self.process_input(action).encode() + b'\n')
+        s_tmp = self._recv()
+        #如果s_tmp为'[]', 说明模型已经结束, 直接返回None
+        if len(s_tmp) == 0:
+            return '', 0, True, ''
+        s = self.process_output(s_tmp)
         end = self.cal_end(s)
         if end:
             self.state = State.END
